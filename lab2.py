@@ -1,8 +1,5 @@
-#!/usr/bin/env python3
-import sys
 import csv
 import argparse
-from graphviz import Digraph
 
 def parse_file(filename):
     with open(filename, 'r', encoding='utf-8') as f:
