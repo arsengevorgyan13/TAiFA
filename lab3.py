@@ -126,30 +126,27 @@ def parse_grammar(lines):
     return transitions, states_order, sorted_terminals, grammar_type
 
 def format_table(transitions, states, terminals, state_map):
-    # Число столбцов = 1 (для терминалов) + число состояний
-    n_states = len(states)
-    # Первая строка: первый столбец пустой, затем n_states-1 пустых ячеек и последняя ячейка "F"
-    header1_cells = [""] + [""]*(n_states - 1) + ["F"]
-    header1 = ";".join(header1_cells)
-    # Вторая строка: первый столбец пустой, затем названия состояний
-    header2_cells = [""] + [state_map[s] for s in states]
-    header2 = ";".join(header2_cells)
-    
-    data_rows = []
-    # Для каждого терминала создаём строку: первый столбец – терминал, затем для каждого состояния ячейка с переходами
+    def cell_str(cell_set):
+        if not cell_set:
+            return "-"
+        ordered = [s for s in states if s in cell_set]
+        mapped = [state_map[s] for s in ordered]
+        return ",".join(mapped)
+
+    header_states = ";" + ";".join(state_map[s] for s in states)
+    final_row = ";" * len(states) + ";F"
+    rows = [final_row, header_states]
+
     for term in terminals:
-        row_cells = [term]
+        row = term
         for s in states:
             if s in transitions and term in transitions[s]:
-                # Переходы выводятся через запятую в порядке добавления
-                cell = ",".join(state_map[d] for d in transitions[s][term])
+                cell = cell_str(transitions[s][term])
             else:
-                cell = ""
-            row_cells.append(cell)
-        # Формируем строку с разделителем ";" и добавляем завершающий разделитель
-        data_rows.append(";".join(row_cells) + ";")
-    
-    return "\n".join([header1, header2] + data_rows)
+                cell = "-"
+            row += ";" + cell
+        rows.append(row)
+    return "\n".join(rows)
 
 def main():
     if len(sys.argv) != 3:
