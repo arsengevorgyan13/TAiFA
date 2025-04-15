@@ -128,7 +128,7 @@ def parse_grammar(lines):
 def format_table(transitions, states, terminals, state_map):
     def cell_str(cell_set):
         if not cell_set:
-            return "-"
+            return ""
         ordered = [s for s in states if s in cell_set]
         mapped = [state_map[s] for s in ordered]
         return ",".join(mapped)
