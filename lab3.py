@@ -143,7 +143,7 @@ def format_table(transitions, states, terminals, state_map):
             if s in transitions and term in transitions[s]:
                 cell = cell_str(transitions[s][term])
             else:
-                cell = "-"
+                cell = ""
             row += ";" + cell
         rows.append(row)
     return "\n".join(rows)
