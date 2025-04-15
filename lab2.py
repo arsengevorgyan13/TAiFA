@@ -48,6 +48,21 @@ def parse_mealy(data):
             transitions[state] = trans
     return input_symbols, states, transitions, variant
 
+def remove_unreachable(initial, states, transitions):
+    reachable = set([initial])
+    changed = True
+    while changed:
+        changed = False
+        for state in list(reachable):
+            for (dest, out) in transitions[state]:
+                if dest not in reachable:
+                    reachable.add(dest)
+                    changed = True
+    # Фильтруем states и transitions
+    new_states = [s for s in states if s in reachable]
+    new_transitions = { s: transitions[s] for s in new_states }
+    return new_states, new_transitions
+
 def minimize_mealy(inputs, states, transitions):
     # Начальное разбиение: группировка по вектору выходов для каждого входа
     P = {}
@@ -75,11 +90,11 @@ def minimize_mealy(inputs, states, transitions):
             for bucket in buckets.values():
                 new_P.append(bucket)
         P = new_P
-    # Создаем отображение: старое имя состояния -> новое имя (s0, s1, …)
+    # Создаем отображение: старое имя состояния -> новое имя (например, "0", "1", …)
     mapping = {}
     new_states = []
     for i, group in enumerate(P):
-        new_name = f"s{i}"
+        new_name = f"{i}"
         new_states.append(new_name)
         for s in group:
             mapping[s] = new_name
@@ -106,7 +121,6 @@ def write_mealy_by_rows(filename, inputs, states, transitions):
 
 # Запись для варианта "by_header" (когда состояния заданы в заголовке, а строки – входные символы)
 def write_mealy_by_header(filename, inputs, states, transitions):
-    # transitions – словарь: для каждого состояния (из исходного автомата) список переходов по входам
     with open(filename, 'w', encoding='utf-8', newline='') as f:
         writer = csv.writer(f, delimiter=';')
         writer.writerow([''] + states)
@@ -197,22 +211,20 @@ def write_moore(filename, inputs, new_states, new_state_output, new_delta):
             writer.writerow(row)
 
 def main():
-    # Определяем аргументы командной строки:
-    #   argv[1] – тип автомата: mealy или moore
-    #   argv[2] – имя входного файла CSV
-    #   argv[3] – имя выходного файла CSV (результат минимизации)
     parser = argparse.ArgumentParser(description="Минимизация автомата Мили или Мура")
     parser.add_argument("autom_type", choices=["mealy", "moore"], help="Тип автомата: mealy или moore")
     parser.add_argument("input_file", help="Имя входного CSV файла")
     parser.add_argument("output_file", help="Имя выходного CSV файла с минимизированным автоматом")
     args = parser.parse_args()
 
-    # Для совместимости с ранее определённой логикой определяем тип автомата по файлу, если необходимо.
     file_type, data = parse_file(args.input_file)
     if args.autom_type != file_type:
         print(f"Предупреждение: аргумент autom_type = {args.autom_type}, а файл определён как {file_type}.")
     if args.autom_type == 'mealy':
         inputs, states, transitions, variant = parse_mealy(data)
+        # Удаляем недостижимые состояния: стартовое состояние – первое из списка состояний
+        initial_state = states[0]
+        states, transitions = remove_unreachable(initial_state, states, transitions)
         new_states, new_transitions, mapping, parts = minimize_mealy(inputs, states, transitions)
         # Записываем результат минимизации с сохранением исходного формата
         if variant == "by_rows":
