@@ -1,2 +1,2 @@
 dispatcher: python3.13 # Пока есть только python3.13 и python3.9
-script: lab4.py # путь до главного исполняемого файла
+script: lab4pc.py # путь до главного исполняемого файла
