@@ -2,10 +2,6 @@ import sys
 import re
 
 def combine_lines(lines):
-    """
-    Объединяет строки, если правило продолжается на следующей строке.
-    Строка, начинающаяся с пробельных символов, считается продолжением предыдущей.
-    """
     combined = []
     buffer = ""
     for line in lines:
@@ -92,7 +88,7 @@ def parse_grammar(lines):
                     if m:
                         dst = m.group(1)
                     else:
-                        dst = "H"
+                        dst = "H"  # Здесь финальное состояние обозначается как "H"
                 add_transition(left_state, term, dst)
             else:
                 if alt.startswith("<"):
@@ -109,11 +105,10 @@ def parse_grammar(lines):
                     term = alt[0]
                     add_transition("H", term, left_state)
 
-    # Формирование порядка состояний.
+    # Для правосторонней грамматики, если финальное состояние использовалось, меняем его имя с "H" на "x2"
     if grammar_type == "right":
         if final_used and "H" not in nonterminals_order:
-            nonterminals_order.append("H")
-        states_order = nonterminals_order
+            nonterminals_order.append("x2")
     else:
         if "H" not in nonterminals_order:
             nonterminals_order = ["H"] + nonterminals_order
@@ -121,6 +116,7 @@ def parse_grammar(lines):
             nonterminals_order.remove("H")
             nonterminals_order = ["H"] + nonterminals_order
         states_order = [nonterminals_order[0]] + list(reversed(nonterminals_order[1:]))
+    states_order = nonterminals_order
 
     sorted_terminals = sorted(terminals, key=lambda x: (not x.isdigit(), x))
     return transitions, states_order, sorted_terminals, grammar_type
@@ -134,7 +130,8 @@ def format_table(transitions, states, terminals, state_map):
         return ",".join(mapped)
 
     header_states = ";" + ";".join(state_map[s] for s in states)
-    final_row = ";" * len(states) + ";F"
+    # Правильное число столбцов: 1 (пустая первая ячейка) + число состояний
+    final_row = ";" * len(states) + "F"
     rows = [final_row, header_states]
 
     for term in terminals:
@@ -161,8 +158,8 @@ def main():
 
     lines = combine_lines(raw_lines)
     transitions, states, terminals, grammar_type = parse_grammar(lines)
-    # Создаём отображение нетерминалов в состояния: порядок состояний задаётся states
-    state_map = {state: f"q{i}" for i, state in enumerate(states)}
+    # Используем исходные имена состояний для отображения
+    state_map = {state: state for state in states}
     result = format_table(transitions, states, terminals, state_map)
 
     with open(output_file, "w", encoding="utf-8") as f:
