@@ -1,0 +1,3 @@
+  ;S	;A	;B	;C		;H
+a;A, B	;-	;B, S	;A, B, C	;-
+b;S, H	;B, H	;S	;-		;-
