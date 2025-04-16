@@ -20,106 +20,81 @@ def combine_lines(lines):
 
 def parse_grammar(lines):
     transitions = {}
-    nonterminals_order = []
+    nonterminals = set()
     terminals = set()
-    final_used = False
+    start_symbol = None
     grammar_type = None
 
-    # Определяем тип грамматики (левосторонняя или правосторонняя)
-    for line in lines:
-        line = line.strip()
-        if not line or "->" not in line:
-            continue
-        _, right = line.split("->", 1)
-        alternatives = right.split("|")
-        for alt in alternatives:
-            alt = alt.strip()
-            if alt:
-                if alt.startswith("<"):
-                    grammar_type = "left"
-                else:
-                    grammar_type = "right"
-                break
-        if grammar_type is not None:
-            break
-    if grammar_type is None:
-        grammar_type = "right"
-
-    def add_transition(src, term, dst):
-        nonlocal final_used
-        if src not in transitions:
-            transitions[src] = {}
-        if term not in transitions[src]:
-            transitions[src][term] = []
-        if dst not in transitions[src][term]:
-            transitions[src][term].append(dst)
-        terminals.add(term)
-        if dst == "H":
-            final_used = True
-
-    # Разбираем правило и заполняем переходы
+    # Сбор всех нетерминалов и определение типа грамматики
     for line in lines:
         line = line.strip()
         if not line or "->" not in line:
             continue
         left, right = line.split("->", 1)
-        left_state = re.sub(r"[<>]", "", left).strip()
-        if left_state not in nonterminals_order:
-            nonterminals_order.append(left_state)
-        alternatives = right.split("|")
-        for alt in alternatives:
+        left = re.sub(r"[<>]", "", left).strip()
+        nonterminals.add(left)
+        
+        # Анализ типа грамматики по первой альтернативе
+        if grammar_type is None:
+            first_alt = right.split("|")[0].strip()
+            if re.search(r"<[^>]+>\s*$", first_alt):
+                grammar_type = "right"
+            else:
+                grammar_type = "left"
+
+    # Добавление всех нетерминалов из правых частей
+    for line in lines:
+        line = line.strip()
+        if not line or "->" not in line:
+            continue
+        _, right = line.split("->", 1)
+        for alt in right.split("|"):
+            alt = alt.strip()
+            for nt in re.findall(r"<([^>]+)>", alt):
+                nonterminals.add(nt)
+
+    # Порядок состояний
+    nonterminals = sorted(nonterminals)
+    if grammar_type == "right":
+        states_order = nonterminals
+    else:
+        states_order = list(reversed(nonterminals))
+
+    # Парсинг переходов
+    for line in lines:
+        line = line.strip()
+        if not line or "->" not in line:
+            continue
+        left, right = line.split("->", 1)
+        left = re.sub(r"[<>]", "", left).strip()
+        
+        for alt in right.split("|"):
             alt = alt.strip()
             if not alt:
                 continue
+
+            parts = re.split(r"(<[^>]+>)", alt)
+            parts = [p.strip() for p in parts if p.strip()]
+
             if grammar_type == "right":
-                if alt.startswith("<"):
-                    m = re.match(r"<([^>]+)>", alt)
-                    if not m:
-                        continue
-                    nonterm = m.group(1)
-                    term = alt[m.end():].strip()
-                    if not term:
-                        continue
-                    term = term[0]
-                    dst = nonterm
-                else:
-                    term = alt[0]
-                    m = re.search(r"<([^>]+)>", alt)
-                    if m:
-                        dst = m.group(1)
-                    else:
-                        dst = "H"  # Здесь финальное состояние обозначается как "H"
-                add_transition(left_state, term, dst)
+                term = parts[0][0]
+                dest = parts[1][1:-1] if len(parts) > 1 else None
             else:
-                if alt.startswith("<"):
-                    m = re.match(r"<([^>]+)>", alt)
-                    if not m:
-                        continue
-                    nonterm = m.group(1)
-                    term = alt[m.end():].strip()
-                    if not term:
-                        continue
-                    term = term[0]
-                    add_transition(nonterm, term, left_state)
-                else:
-                    term = alt[0]
-                    add_transition("H", term, left_state)
+                term = parts[-1][0]
+                dest = parts[0][1:-1] if len(parts) > 1 else None
 
-    # Для правосторонней грамматики, если финальное состояние использовалось, меняем его имя с "H" на "x2"
-    if grammar_type == "right":
-        if final_used and "H" not in nonterminals_order:
-            nonterminals_order.append("x2")
-    else:
-        if "H" not in nonterminals_order:
-            nonterminals_order = ["H"] + nonterminals_order
-        else:
-            nonterminals_order.remove("H")
-            nonterminals_order = ["H"] + nonterminals_order
-        states_order = [nonterminals_order[0]] + list(reversed(nonterminals_order[1:]))
-    states_order = nonterminals_order
+            if dest is None:
+                continue  # Пропускаем терминальные переходы без состояния
 
-    sorted_terminals = sorted(terminals, key=lambda x: (not x.isdigit(), x))
-    return transitions, states_order, sorted_terminals, grammar_type
+            if left not in transitions:
+                transitions[left] = {}
+            if term not in transitions[left]:
+                transitions[left][term] = set()
+            transitions[left][term].add(dest)
+            terminals.add(term)
+
+    terminals = sorted(terminals)
+    return transitions, states_order, terminals, grammar_type
 
 def format_table(transitions, states, terminals, state_map):
     def cell_str(cell_set):
@@ -130,7 +105,6 @@ def format_table(transitions, states, terminals, state_map):
         return ",".join(mapped)
 
     header_states = ";" + ";".join(state_map[s] for s in states)
-    # Правильное число столбцов: 1 (пустая первая ячейка) + число состояний
     final_row = ";" * len(states) + "F"
     rows = [final_row, header_states]
 
@@ -158,8 +132,8 @@ def main():
 
     lines = combine_lines(raw_lines)
     transitions, states, terminals, grammar_type = parse_grammar(lines)
-    # Используем исходные имена состояний для отображения
-    state_map = {state: state for state in states}
+    # Создаём отображение нетерминалов в состояния: порядок состояний задаётся states
+    state_map = {state: f"q{i}" for i, state in enumerate(states)}
     result = format_table(transitions, states, terminals, state_map)
 
     with open(output_file, "w", encoding="utf-8") as f:
