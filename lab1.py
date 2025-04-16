@@ -1,7 +1,7 @@
 import sys
 import csv
 from collections import deque
-from graphviz import Digraph  # Для визуализации
+# from graphviz import Digraph  # Для визуализации
 
 def read_csv(filename, delimiter=';'):
     with open(filename, newline='', encoding='utf-8') as csvfile:
@@ -232,52 +232,52 @@ def export_mealy(mealy):
 
 # Функции визуализации автоматов с использованием Graphviz
 
-def visualize_mealy(mealy, filename):
-    """Визуализация Mealy автомата.
-       Узлы обозначаются именами состояний,
-       а рёбра подписаны в формате 'input/output'."""
-    dot = Digraph(comment='Mealy Automaton')
-    states = mealy['states']
-    inputs = mealy['inputs']
-    transitions = mealy['transitions']
-    start = mealy['start']
-    for st in states:
-        label = st
-        if st == start:
-            label += "\n(start)"
-            dot.node(st, label=label, color='green')
-        else:
-            dot.node(st, label=label)
-    for st in states:
-        if st not in transitions:
-            continue
-        for a, (target, out) in transitions[st].items():
-            dot.edge(st, target, label=f"{a}/{out}")
-    dot.render(filename, view=False, format='png')
-    print(f"Визуализация Mealy автомата сохранена в {filename}.png")
+# def visualize_mealy(mealy, filename):
+#     """Визуализация Mealy автомата.
+#        Узлы обозначаются именами состояний,
+#        а рёбра подписаны в формате 'input/output'."""
+#     dot = Digraph(comment='Mealy Automaton')
+#     states = mealy['states']
+#     inputs = mealy['inputs']
+#     transitions = mealy['transitions']
+#     start = mealy['start']
+#     for st in states:
+#         label = st
+#         if st == start:
+#             label += "\n(start)"
+#             dot.node(st, label=label, color='green')
+#         else:
+#             dot.node(st, label=label)
+#     for st in states:
+#         if st not in transitions:
+#             continue
+#         for a, (target, out) in transitions[st].items():
+#             dot.edge(st, target, label=f"{a}/{out}")
+#     dot.render(filename, view=False, format='png')
+#     print(f"Визуализация Mealy автомата сохранена в {filename}.png")
 
-def visualize_moore(moore, filename):
-    """Визуализация Moore автомата.
-       Узлы подписаны именем состояния и выходом,
-       а рёбра подписаны входными символами."""
-    dot = Digraph(comment='Moore Automaton')
-    moore_states = moore['states']
-    inputs = moore['inputs']
-    transitions = moore['transitions']
-    start = moore['start']
-    outputs = { st['name']: st['output'] for st in moore_states }
-    for st in outputs:
-        label = f"{st}\nOutput: {outputs[st]}"
-        if st == start:
-            label += "\n(start)"
-            dot.node(st, label=label, color='green')
-        else:
-            dot.node(st, label=label)
-    for st, trans in transitions.items():
-        for a, target in trans.items():
-            dot.edge(st, target, label=a)
-    dot.render(filename, view=False, format='png')
-    print(f"Визуализация Moore автомата сохранена в {filename}.png")
+# def visualize_moore(moore, filename):
+#     """Визуализация Moore автомата.
+#        Узлы подписаны именем состояния и выходом,
+#        а рёбра подписаны входными символами."""
+#     dot = Digraph(comment='Moore Automaton')
+#     moore_states = moore['states']
+#     inputs = moore['inputs']
+#     transitions = moore['transitions']
+#     start = moore['start']
+#     outputs = { st['name']: st['output'] for st in moore_states }
+#     for st in outputs:
+#         label = f"{st}\nOutput: {outputs[st]}"
+#         if st == start:
+#             label += "\n(start)"
+#             dot.node(st, label=label, color='green')
+#         else:
+#             dot.node(st, label=label)
+#     for st, trans in transitions.items():
+#         for a, target in trans.items():
+#             dot.edge(st, target, label=a)
+#     dot.render(filename, view=False, format='png')
+#     print(f"Визуализация Moore автомата сохранена в {filename}.png")
 
 def main():
     if len(sys.argv) != 4:
@@ -293,21 +293,21 @@ def main():
         # Загрузка исходного Mealy автомата
         mealy = load_mealy(input_file)
         # Визуализация исходного Mealy автомата
-        visualize_mealy(mealy, "mealy_original")
+        # visualize_mealy(mealy, "mealy_original")
         # Преобразование в Moore автомат
         moore = convert_mealy_to_moore(mealy)
         # Визуализация полученного Moore автомата
-        visualize_moore(moore, "moore_converted")
+        # visualize_moore(moore, "moore_converted")
         csv_rows = export_moore(moore)
     elif mode == "moore-to-mealy":
         # Загрузка исходного Moore автомата
         moore = load_moore(input_file)
         # Визуализация исходного Moore автомата
-        visualize_moore(moore, "moore_original")
+        # visualize_moore(moore, "moore_original")
         # Преобразование в Mealy автомат
         mealy = convert_moore_to_mealy(moore)
         # Визуализация полученного Mealy автомата
-        visualize_mealy(mealy, "mealy_converted")
+        # visualize_mealy(mealy, "mealy_converted")
         csv_rows = export_mealy(mealy)
     else:
         print("Неверный режим. Используйте mealy-to-moore или moore-to-mealy")
