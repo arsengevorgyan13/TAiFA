@@ -1,0 +1,44 @@
+// Moore Automaton
+digraph {
+	q0 [label="q0
+Output: 0
+(start)" color=green]
+	q1 [label="q1
+Output: 1"]
+	q2 [label="q2
+Output: 2"]
+	q3 [label="q3
+Output: 1"]
+	q4 [label="q4
+Output: 0"]
+	q5 [label="q5
+Output: 2"]
+	q6 [label="q6
+Output: 1"]
+	q7 [label="q7
+Output: 0"]
+	q5 -> q2 [label=b1]
+	q5 -> q3 [label=b2]
+	q5 -> q7 [label=b3]
+	q2 -> q0 [label=b1]
+	q2 -> q3 [label=b2]
+	q2 -> q5 [label=b3]
+	q1 -> q0 [label=b1]
+	q1 -> q3 [label=b2]
+	q1 -> q5 [label=b3]
+	q7 -> q2 [label=b1]
+	q7 -> q3 [label=b2]
+	q7 -> q7 [label=b3]
+	q6 -> q2 [label=b1]
+	q6 -> q3 [label=b2]
+	q6 -> q7 [label=b3]
+	q0 -> q0 [label=b1]
+	q0 -> q3 [label=b2]
+	q0 -> q5 [label=b3]
+	q4 -> q1 [label=b1]
+	q4 -> q4 [label=b2]
+	q4 -> q6 [label=b3]
+	q3 -> q1 [label=b1]
+	q3 -> q4 [label=b2]
+	q3 -> q6 [label=b3]
+}

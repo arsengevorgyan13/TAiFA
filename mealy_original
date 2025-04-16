@@ -1,0 +1,16 @@
+// Mealy Automaton
+digraph {
+	F1 [label="F1
+(start)" color=green]
+	F2 [label=F2]
+	F3 [label=F3]
+	F1 -> F1 [label="b1/0"]
+	F1 -> F2 [label="b2/1"]
+	F1 -> F3 [label="b3/2"]
+	F2 -> F1 [label="b1/1"]
+	F2 -> F2 [label="b2/0"]
+	F2 -> F3 [label="b3/1"]
+	F3 -> F1 [label="b1/2"]
+	F3 -> F2 [label="b2/1"]
+	F3 -> F3 [label="b3/0"]
+}
