@@ -1,245 +1,173 @@
-#!/usr/bin/env python3
 import sys
+from collections import defaultdict, deque
+# from graphviz import Digraph
 
-# Глобальные структуры для построения НКА
-transitions = {}  # transitions[state][symbol] = set(целевых состояний)
-symbols = set()   # множество символов (включая 'ε')
-state_count = 0   # для нумерации состояний
+def preprocess_regex(regex):
+    return regex.replace("()", "@")
 
-def new_state():
-    """Создаёт новое состояние (идентификатор целого типа)."""
-    global state_count
-    s = state_count
-    state_count += 1
-    return s
+def add_concat(regex):
+    new_regex = ""
+    symbols = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@абвгдеёжзийклмнопрстуфхцчшщьыъэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЬЫЪЭЮЯ")
+    prev = None
+    for char in regex:
+        if prev:
+            if (prev in symbols or prev in ")*+") and (char in symbols or char == "("):
+                new_regex += "."
+        new_regex += char
+        prev = char
+    return new_regex
 
-def add_transition(frm, symbol, to):
-    """Добавляет переход в таблицу переходов."""
-    if frm not in transitions:
-        transitions[frm] = {}
-    if symbol not in transitions[frm]:
-        transitions[frm][symbol] = set()
-    transitions[frm][symbol].add(to)
-    symbols.add(symbol)
-
-# Функции для построения фрагментов НКА по алгоритму Томпсона
-def literal_NFA(c):
-    """НКА для литерального символа."""
-    s = new_state()
-    f = new_state()
-    add_transition(s, c, f)
-    return (s, f)
-
-def epsilon_NFA():
-    """НКА для пустой строки (ε-переход от s до f)."""
-    s = new_state()
-    f = new_state()
-    add_transition(s, 'ε', f)
-    return (s, f)
-
-def concat_NFA(nfa1, nfa2):
-    """Конкатенация двух НКА: соединяем финальное состояние первого ε-переходом к начальному второго."""
-    (s1, f1) = nfa1
-    (s2, f2) = nfa2
-    add_transition(f1, 'ε', s2)
-    return (s1, f2)
-
-def union_NFA(nfa1, nfa2):
-    """Объединение (альтернация) двух НКА."""
-    s = new_state()
-    f = new_state()
-    (s1, f1) = nfa1
-    (s2, f2) = nfa2
-    add_transition(s, 'ε', s1)
-    add_transition(s, 'ε', s2)
-    add_transition(f1, 'ε', f)
-    add_transition(f2, 'ε', f)
-    return (s, f)
-
-def star_NFA(nfa):
-    """Построение НКА для конструкций r*."""
-    s = new_state()
-    f = new_state()
-    (ns, nf) = nfa
-    add_transition(s, 'ε', ns)
-    add_transition(s, 'ε', f)
-    add_transition(nf, 'ε', ns)
-    add_transition(nf, 'ε', f)
-    return (s, f)
-
-def plus_NFA(nfa):
-    """Построение НКА для конструкций r+ (однократное вхождение плюс цикл)."""
-    s = new_state()
-    f = new_state()
-    (ns, nf) = nfa
-    add_transition(s, 'ε', ns)
-    add_transition(nf, 'ε', ns)
-    add_transition(nf, 'ε', f)
-    return (s, f)
-
-# Реализация рекурсивного спуска для парсинга регулярного выражения.
-# Поддерживаются операторы: | (альтернатива), неявная конкатенация, *, +, группировка ( ) и пустой символ: ()
-class Parser:
-    def __init__(self, regex):
-        # удаляем пробелы для удобства
-        self.regex = regex.replace(" ", "")
-        self.pos = 0
-        self.len = len(self.regex)
-
-    def parse(self):
-        nfa = self.parse_union()
-        return nfa
-
-    def current(self):
-        if self.pos < self.len:
-            return self.regex[self.pos]
-        return None
-
-    def eat(self, char):
-        if self.current() == char:
-            self.pos += 1
+def to_postfix(regex):
+    precedence = {'*': 3, '+': 3, '.': 2, '|': 1}
+    output = []
+    stack = []
+    for char in regex:
+        if char.isalnum() or char == '@':
+            output.append(char)
+        elif char == "(":
+            stack.append(char)
+        elif char == ")":
+            while stack and stack[-1] != "(":
+                output.append(stack.pop())
+            stack.pop()
         else:
-            sys.exit(f"Ожидался символ '{char}' в позиции {self.pos}")
+            while stack and stack[-1] != "(" and precedence.get(stack[-1], 0) >= precedence.get(char, 0):
+                output.append(stack.pop())
+            stack.append(char)
+    while stack:
+        output.append(stack.pop())
+    return "".join(output)
 
-    def parse_union(self):
-        left = self.parse_concat()
-        while self.current() == '|':
-            self.eat('|')
-            right = self.parse_concat()
-            left = union_NFA(left, right)
-        return left
+class State:
+    _id_counter = 0
+    def __init__(self):
+        self.edges = defaultdict(list)
+        self.name = f"S{State._id_counter}"
+        State._id_counter += 1
 
-    def parse_concat(self):
-        # Конкатенация до встречи с | или закрывающей скобкой
-        frag = None
-        while self.current() and self.current() not in ')|':
-            next_frag = self.parse_star()
-            if frag is None:
-                frag = next_frag
-            else:
-                frag = concat_NFA(frag, next_frag)
-        if frag is None:
-            # Если нет символов, возвращаем ε-НКА
-            frag = epsilon_NFA()
-        return frag
+class NFA:
+    def __init__(self, start, end):
+        self.start = start
+        self.end = end
 
-    def parse_star(self):
-        frag = self.parse_basic()
-        while self.current() in ['*', '+']:
-            op = self.current()
-            self.pos += 1
-            if op == '*':
-                frag = star_NFA(frag)
-            elif op == '+':
-                frag = plus_NFA(frag)
-        return frag
-
-    def parse_basic(self):
-        c = self.current()
-        if c == '(':
-            self.eat('(')
-            # Особый случай: пустые скобки означают пустой символ
-            if self.current() == ')':
-                self.eat(')')
-                return epsilon_NFA()
-            frag = self.parse_union()
-            self.eat(')')
-            return frag
+def build_nfa(postfix):
+    State._id_counter = 0
+    stack = []
+    for char in postfix:
+        if char.isalnum() or char == '@':
+            s0 = State()
+            s1 = State()
+            s0.edges[char].append(s1)
+            stack.append(NFA(s0, s1))
+        elif char == '.':
+            nfa2 = stack.pop()
+            nfa1 = stack.pop()
+            nfa1.end.edges['@'].append(nfa2.start)
+            stack.append(NFA(nfa1.start, nfa2.end))
+        elif char == '|':
+            nfa2 = stack.pop()
+            nfa1 = stack.pop()
+            s0 = State()
+            s1 = State()
+            s0.edges['@'].extend([nfa1.start, nfa2.start])
+            nfa1.end.edges['@'].append(s1)
+            nfa2.end.edges['@'].append(s1)
+            stack.append(NFA(s0, s1))
+        elif char == '*':
+            nfa1 = stack.pop()
+            s0 = State()
+            s1 = State()
+            s0.edges['@'].extend([nfa1.start, s1])
+            nfa1.end.edges['@'].extend([nfa1.start, s1])
+            stack.append(NFA(s0, s1))
+        elif char == '+':
+            nfa1 = stack.pop()
+            s0 = nfa1.start
+            s1 = State()
+            nfa1.end.edges['@'].extend([nfa1.start, s1])
+            stack.append(NFA(s0, s1))
         else:
-            # Литерал
-            self.pos += 1
-            return literal_NFA(c)
+            raise ValueError(f"Неизвестный символ {char}")
+    if len(stack) != 1:
+        raise ValueError("Ошибка построения NFA")
+    return stack[0]
 
-# Функции для формирования таблицы переходов автомата Мура.
-def generate_q_mapping(states_order):
-    """
-    Создает отображение: состояние -> метка (q0, q1, ...).
-    Финальное состояние (при выводе заменяется на "F" в заголовке).
-    """
-    mapping = {}
-    for i, s in enumerate(states_order):
-        mapping[s] = f"q{i}"
-    return mapping
+def collect_all_states(start_state):
+    visited = set()
+    stack = [start_state]
+    while stack:
+        state = stack.pop()
+        if state in visited:
+            continue
+        visited.add(state)
+        for targets in state.edges.values():
+            stack.extend(targets)
+    return visited
 
-def format_table_with_q(transitions, states_order, terminals, q_mapping):
-    """
-    Формирует CSV-таблицу с заголовками:
-      Первая строка: пустые ячейки для всех столбцов, кроме последнего, где стоит "F"
-      Вторая строка: метки состояний согласно q_mapping
-    Затем для каждого символа входного алфавита (включая ε) формируются строки с переходами.
-    Если переход отсутствует, ячейка остаётся пустой, а несколько переходов разделяются запятой.
-    """
-    num_states = len(states_order)
-    header1 = ";" + ";".join("" for _ in range(num_states - 1)) + ";F"
-    header2 = ";" + ";".join(q_mapping[s] for s in states_order)
-    rows = [header1, header2]
+def collect_symbols(states):
+    symbols = set()
+    for state in states:
+        for sym in state.edges:
+            symbols.add(sym)
+    return sorted(s for s in symbols if s != '@')
 
-    # Сортировка символов: цифры, потом буквы, потом ε
-    def symbol_key(s):
-        if s == 'ε':
-            return (2, s)
-        elif s[0].isdigit():
-            return (0, s)
-        else:
-            return (1, s)
-    sorted_terminals = sorted(terminals, key=symbol_key)
+def save_nfa_csv(nfa, output_file):
+    all_states = sorted(collect_all_states(nfa.start), key=lambda s: int(s.name[1:]))
+    alphabet = collect_symbols(all_states)
+    state_names = [s.name for s in all_states]
+    final_flags = ["F" if s == nfa.end else "" for s in all_states]
 
-    for term in sorted_terminals:
-        row = [term]
-        for s in states_order:
-            cell = ""
-            if s in transitions and term in transitions[s]:
-                dests = transitions[s][term]
-                mapped = []
-                for dst in states_order:
-                    if dst in dests:
-                        mapped.append("F" if dst == final_state else q_mapping[dst])
-                cell = ",".join(mapped)
-            row.append(cell)
-        rows.append(";".join(row))
-    return "\n".join(rows)
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write(";;" + ";".join(final_flags) + "\n")
+        f.write(";" + ";".join(state_names) + "\n")
+        for symbol in alphabet + ['ε']:
+            row = [symbol]
+            for state in all_states:
+                if symbol == 'ε':
+                    targets = state.edges.get('@', [])
+                else:
+                    targets = state.edges.get(symbol, [])
+                row.append(",".join(sorted(t.name for t in targets)))
+            f.write(";".join(row) + "\n")
+
+# def visualize_nfa_graph(nfa, filename):
+#     dot = Digraph(comment="NFA")
+#     dot.attr(rankdir="LR")
+
+#     all_states = collect_all_states(nfa.start)
+#     for state in all_states:
+#         shape = "doublecircle" if state == nfa.end else "circle"
+#         dot.node(state.name, shape=shape)
+
+#     dot.node("", shape="none")
+#     dot.edge("", nfa.start.name)
+
+#     for state in all_states:
+#         for symbol, targets in state.edges.items():
+#             label = "ε" if symbol == "@" else symbol
+#             for target in targets:
+#                 dot.edge(state.name, target.name, label=label)
+
+#     output_path = filename.rsplit(".", 1)[0]
+#     dot.render(output_path, format="png", cleanup=True)
+#     print(f"Граф NFA сохранён в {output_path}")
 
 def main():
-    # Ожидается запуск: ./LAB5.py output.csv "(r*|su*t)*su*"
     if len(sys.argv) != 3:
-        print("Usage: ./LAB5.py <output_file> <regular_expression>")
+        print("Использование: ./regexToNFA output.csv \"регулярное_выражение\"")
         sys.exit(1)
-    output_file = sys.argv[1]
-    regex_input = sys.argv[2]
 
-    # Построение НКА по регулярному выражению
-    parser = Parser(regex_input)
-    start_state, accept_state = parser.parse()
+    output_file, regex = sys.argv[1], sys.argv[2]
+    regex = preprocess_regex(regex)
+    print(f"Исходное выражение: {regex}")
 
-    # Финальное состояние автомата – то, которое было получено как accept_state фрагмента
-    global final_state
-    final_state = accept_state
+    regex = add_concat(regex)
+    postfix = to_postfix(regex)
+    print(f"Постфикс: {postfix}")
 
-    # Для состояний автомата собираем все упомянутые состояния
-    all_states = set(transitions.keys())
-    for trans in transitions.values():
-        for dest_set in trans.values():
-            all_states |= dest_set
+    nfa = build_nfa(postfix)
+    save_nfa_csv(nfa, output_file)
+    # visualize_nfa_graph(nfa, output_file)
 
-    # Если финальное состояние не попало в ключи, добавляем его
-    all_states.add(final_state)
-
-    # Сортируем состояния по числовому значению, но перемещаем финальное состояние в конец
-    ordered_states = sorted(list(all_states))
-    if final_state in ordered_states:
-        ordered_states.remove(final_state)
-        ordered_states.append(final_state)
-    # Если состояние не имеет переходов, добавляем пустой словарь
-    for s in ordered_states:
-        if s not in transitions:
-            transitions[s] = {}
-
-    # Формирование отображения состояний в метки q0, q1, ...
-    q_mapping = generate_q_mapping(ordered_states)
-    # Формирование таблицы переходов
-    result = format_table_with_q(transitions, ordered_states, symbols, q_mapping)
-    with open(output_file, "w", encoding="utf-8") as f:
-        f.write(result + "\n")
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
